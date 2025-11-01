@@ -19,14 +19,6 @@ const PORT = process.env.PORT || 3000;
 setupUnhandledRejectionHandler();
 setupUncaughtExceptionHandler();
 
-// Log environment information
-console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
-console.log(
-  `🚂 Railway Environment: ${process.env.RAILWAY_ENVIRONMENT || "not set"}`
-);
-console.log(`🔌 Port: ${PORT}`);
-console.log(`📡 Host: 0.0.0.0 (accessible from outside container)`);
-
 // MongoDB Connection
 connectDB()
   .then(() => {
