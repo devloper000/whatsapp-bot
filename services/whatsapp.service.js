@@ -1,6 +1,7 @@
 const { Client, RemoteAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const { MongoStore } = require("wwebjs-mongo");
+const axios = require("axios");
 const {
   getPuppeteerArgs,
   MAX_RESTART_ATTEMPTS,
@@ -12,11 +13,88 @@ const {
   clearCurrentQR,
 } = require("./qr.service");
 
+// n8n webhook URL
+const N8N_WEBHOOK_URL =
+  process.env.N8N_WEBHOOK_URL ||
+  "http://localhost:5678/webhook-test/4e5bc752-baf5-47d7-a227-24b7a88552c6";
+
 let whatsappClient = null;
 let isClientReady = false;
 let restartAttempts = 0;
 let isInitializing = false;
 let store = null;
+
+/**
+ * Handle incoming WhatsApp messages and send to n8n
+ * @param {Message} message - WhatsApp message object
+ */
+async function handleIncomingMessage(message) {
+  try {
+    // Skip if message is from status broadcast
+    if (message.from === "status@broadcast") {
+      return;
+    }
+
+    // Get sender info
+    const contact = await message.getContact();
+    const chat = await message.getChat();
+
+    // Prepare data to send to n8n
+    const webhookData = {
+      messageId: message.id._serialized,
+      from: message.from,
+      fromName: contact.name || contact.pushname || message.from,
+      body: message.body,
+      timestamp: message.timestamp,
+      isGroup: chat.isGroup,
+      chatName: chat.name,
+      type: message.type, // text, image, video, audio, etc.
+      hasMedia: message.hasMedia,
+    };
+
+    console.log("📥 Incoming message from:", webhookData.fromName);
+    console.log("📝 Message:", message.body);
+
+    // Send to n8n webhook
+    console.log("🔄 Sending to n8n...");
+    const response = await axios.post(N8N_WEBHOOK_URL, webhookData, {
+      timeout: 30000, // 30 second timeout
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    console.log("🚀 ~ handleIncomingMessage ~ response:", response.data)
+
+    console.log("✅ n8n response received");
+
+    // Check if n8n returned a reply message
+    if (response.data) {
+      // Alternative field name
+      console.log("💬 Sending message:", response.data);
+      await message.reply(response.data);
+      console.log("✅ Message sent successfully");
+    } else {
+      console.log("ℹ️  No reply message in n8n response");
+    }
+  } catch (error) {
+    console.error("❌ Error handling message:", error.message);
+
+    // Send error message to user (optional)
+    try {
+      if (error.code === "ECONNREFUSED") {
+        console.error("❌ Cannot connect to n8n webhook - is n8n running?");
+        await message.reply(
+          "⚠️ Bot service temporarily unavailable. Please try again later."
+        );
+      } else if (error.code === "ETIMEDOUT" || error.code === "ECONNABORTED") {
+        console.error("❌ n8n webhook timeout");
+        await message.reply("⚠️ Response timeout. Please try again.");
+      }
+    } catch (replyError) {
+      console.error("❌ Failed to send error message:", replyError.message);
+    }
+  }
+}
 
 /**
  * Initialize WhatsApp Client
@@ -99,6 +177,11 @@ function initializeWhatsAppClient(mongoStore) {
     isInitializing = false;
     clearCurrentQR();
     broadcastQRUpdate(null, "ready");
+  });
+
+  // Message Handler - Listen for incoming messages
+  client.on("message", async (message) => {
+    await handleIncomingMessage(message);
   });
 
   // Authentication Success
