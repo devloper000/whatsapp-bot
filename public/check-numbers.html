@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatsApp Number Checker</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Plus Jakarta Sans", sans-serif;
+      }
+
+      body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .card {
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        margin-bottom: 30px;
+      }
+
+      h1 {
+        color: #333;
+        margin-bottom: 10px;
+        font-size: 2.5em;
+        text-align: center;
+      }
+
+      .subtitle {
+        text-align: center;
+        color: #666;
+        margin-bottom: 30px;
+        font-size: 1.1em;
+      }
+
+      .info-box {
+        background: #f0f4ff;
+        border-left: 4px solid #667eea;
+        padding: 15px 20px;
+        margin-bottom: 25px;
+        border-radius: 8px;
+      }
+
+      .info-box p {
+        color: #555;
+        line-height: 1.6;
+        margin-bottom: 8px;
+      }
+
+      .info-box strong {
+        color: #333;
+      }
+
+      .input-group {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+        padding: 25px;
+        background: #f8f9fa;
+        border-radius: 15px;
+      }
+
+      .count-input-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex: 1;
+        max-width: 300px;
+      }
+
+      .count-input-wrapper label {
+        font-weight: 600;
+        color: #333;
+        font-size: 1em;
+      }
+
+      .count-input-wrapper input {
+        padding: 15px 20px;
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        font-size: 1.1em;
+        font-weight: 600;
+        color: #333;
+        transition: all 0.3s ease;
+        width: 100%;
+      }
+
+      .count-input-wrapper input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      .button-group {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 30px;
+      }
+
+      button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 15px 35px;
+        border-radius: 12px;
+        font-size: 1.1em;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .secondary-btn {
+        background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+        box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+      }
+
+      .secondary-btn:hover {
+        box-shadow: 0 6px 20px rgba(46, 204, 113, 0.6);
+      }
+
+      .status {
+        text-align: center;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 25px;
+        font-weight: 600;
+        font-size: 1.1em;
+        display: none;
+      }
+
+      .status.loading {
+        background: #fff3cd;
+        color: #856404;
+        display: block;
+      }
+
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+        display: block;
+      }
+
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+        display: block;
+      }
+
+      .loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50%;
+        border-top-color: #856404;
+        animation: spin 1s ease-in-out infinite;
+        margin-right: 10px;
+        vertical-align: middle;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .summary-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 25px;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .summary-card.success {
+        background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+      }
+
+      .summary-card.error {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+      }
+
+      .summary-card h3 {
+        font-size: 3em;
+        margin-bottom: 10px;
+      }
+
+      .summary-card p {
+        font-size: 1.1em;
+        opacity: 0.9;
+      }
+
+      .results-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+
+      .results-table th {
+        background: #f8f9fa;
+        padding: 15px;
+        text-align: left;
+        font-weight: 600;
+        color: #333;
+        border-bottom: 2px solid #dee2e6;
+      }
+
+      .results-table td {
+        padding: 15px;
+        border-bottom: 1px solid #dee2e6;
+        color: #555;
+      }
+
+      .results-table tr:hover {
+        background: #f8f9fa;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.9em;
+        font-weight: 600;
+      }
+
+      .badge.success {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .badge.error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #999;
+      }
+
+      .empty-state svg {
+        width: 100px;
+        height: 100px;
+        opacity: 0.3;
+        margin-bottom: 20px;
+      }
+
+      .empty-state p {
+        font-size: 1.2em;
+      }
+
+      .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin-top: 25px;
+        padding: 20px;
+      }
+
+      .pagination button {
+        padding: 10px 20px;
+        font-size: 1em;
+        min-width: 100px;
+      }
+
+      .pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .pagination-info {
+        font-weight: 600;
+        color: #333;
+        padding: 0 15px;
+        font-size: 1em;
+      }
+
+      .items-per-page {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 15px;
+        justify-content: flex-end;
+      }
+
+      .items-per-page label {
+        font-weight: 600;
+        color: #333;
+        font-size: 0.95em;
+      }
+
+      .items-per-page select {
+        padding: 8px 15px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-size: 0.95em;
+        font-weight: 600;
+        color: #333;
+        background: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .items-per-page select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      .progress-bar {
+        width: 100%;
+        height: 30px;
+        background: #f0f0f0;
+        border-radius: 15px;
+        overflow: hidden;
+        margin-bottom: 20px;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        transition: width 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+      }
+
+      @media (max-width: 768px) {
+        .card {
+          padding: 25px;
+        }
+
+        h1 {
+          font-size: 1.8em;
+        }
+
+        .input-group {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .count-input-wrapper {
+          max-width: 100%;
+        }
+
+        .button-group {
+          flex-direction: column;
+        }
+
+        button {
+          width: 100%;
+        }
+
+        .pagination {
+          flex-direction: column;
+          gap: 15px;
+        }
+
+        .pagination button {
+          width: 100%;
+        }
+
+        .items-per-page {
+          justify-content: flex-start;
+          width: 100%;
+        }
+
+        .results-table {
+          font-size: 0.9em;
+        }
+
+        .results-table th,
+        .results-table td {
+          padding: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>📱 WhatsApp Number Checker</h1>
+        <p class="subtitle">Check which numbers are registered on WhatsApp</p>
+
+        <div class="info-box">
+          <p>
+            <strong>💾 Verified in Database:</strong>
+            <span id="dbVerified">Loading...</span>
+          </p>
+          <p>
+            <strong>ℹ️ How it works:</strong> Enter the number of checks you
+            want to perform. The system will generate random Pakistani WhatsApp
+            numbers (format: 923[0-4][8 digits]) and verify them. Valid numbers
+            are automatically saved to database.
+          </p>
+          <p>
+            <strong>⏱️ Note:</strong> Each check takes 0.5 seconds per number to
+            avoid rate limiting.
+          </p>
+        </div>
+
+        <div class="input-group">
+          <div class="count-input-wrapper">
+            <label for="countInput">📱 Number of checks:</label>
+            <input
+              type="number"
+              id="countInput"
+              placeholder="Enter count (e.g., 100)"
+              min="1"
+              max="1000"
+              value="5"
+            />
+          </div>
+          <button onclick="checkNumbers()" class="secondary-btn">
+            🔍 Generate & Check Numbers
+          </button>
+        </div>
+
+        <div class="button-group">
+          <button
+            onclick="viewVerifiedNumbers()"
+            style="
+              background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            "
+          >
+            💾 View Database
+          </button>
+          <button
+            onclick="exportVerifiedCSV()"
+            style="
+              background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+            "
+          >
+            📥 Export DB to CSV
+          </button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div id="progress" style="display: none">
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill">0%</div>
+          </div>
+        </div>
+
+        <div id="summary" style="display: none"></div>
+
+        <div id="results" style="display: none">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+            <h2 style="color: #333; margin: 0">📋 All Results</h2>
+            <div class="items-per-page">
+              <label for="itemsPerPageSelect">Items per page:</label>
+              <select id="itemsPerPageSelect" onchange="changeItemsPerPage()">
+                <option value="10" selected>10</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="150">150</option>
+                <option value="200">200</option>
+                <option value="250">250</option>
+                <option value="300">300</option>
+              </select>
+            </div>
+          </div>
+          <div id="tab-all"></div>
+          <div id="pagination" class="pagination" style="display: none"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let currentData = null;
+      let currentPage = 1;
+      let itemsPerPage = 10;
+      let totalPages = 1;
+      let checkResultsPage = 1;
+
+      // Load database stats
+      async function loadDBStats() {
+        try {
+          const response = await fetch("/verified-numbers/stats");
+          const data = await response.json();
+
+          if (data.success) {
+            document.getElementById("dbVerified").textContent =
+              data.stats.totalVerified + " numbers";
+          }
+        } catch (error) {
+          console.error("Error loading DB stats:", error);
+          document.getElementById("dbVerified").textContent = "0 numbers";
+        }
+      }
+
+      // Check numbers
+      async function checkNumbers() {
+        try {
+          // Get count from input
+          const countInput = document.getElementById("countInput");
+          const count = parseInt(countInput.value) || 5;
+
+          // Validate count
+          if (count < 1 || count > 1000) {
+            showStatus(
+              "Please enter a valid count between 1 and 1000",
+              "error"
+            );
+            return;
+          }
+
+          showStatus(
+            `Generating and checking ${count} numbers... This may take a few minutes. Please wait.`,
+            "loading"
+          );
+          document.getElementById("progress").style.display = "block";
+          document.getElementById("results").style.display = "none";
+          document.getElementById("summary").style.display = "none";
+
+          // Simulate progress (rough estimate)
+          let progress = 0;
+          const progressInterval = setInterval(() => {
+            progress += 1;
+            if (progress > 95) {
+              progress = 95;
+            }
+            updateProgress(progress);
+          }, 500);
+
+          const response = await fetch(`/check-numbers?count=${count}`);
+          const data = await response.json();
+
+          clearInterval(progressInterval);
+          updateProgress(100);
+
+          if (data.success) {
+            currentData = data;
+            checkResultsPage = 1; // Reset to first page
+            showStatus(
+              `✅ Check completed! ${data.summary.validNumbers} valid numbers found. ${data.summary.newSaved} saved to DB.`,
+              "success"
+            );
+            displaySummary(data.summary);
+            displayCheckResults(data.results);
+            document.getElementById("progress").style.display = "none";
+
+            // Reload DB stats
+            loadDBStats();
+          } else {
+            showStatus(`Error: ${data.message}`, "error");
+            document.getElementById("progress").style.display = "none";
+          }
+        } catch (error) {
+          showStatus(`Error checking numbers: ${error.message}`, "error");
+          document.getElementById("progress").style.display = "none";
+        }
+      }
+
+      function updateProgress(percent) {
+        const progressFill = document.getElementById("progressFill");
+        progressFill.style.width = percent + "%";
+        progressFill.textContent = Math.floor(percent) + "%";
+      }
+
+      function showStatus(message, type) {
+        const statusDiv = document.getElementById("status");
+        statusDiv.className = `status ${type}`;
+
+        if (type === "loading") {
+          statusDiv.innerHTML = `<span class="loading-spinner"></span>${message}`;
+        } else {
+          statusDiv.textContent = message;
+        }
+      }
+
+      function displaySummary(summary) {
+        const summaryDiv = document.getElementById("summary");
+        const summaryHTML = `
+          <div class="summary">
+            <div class="summary-card">
+              <h3>${summary.totalChecked || 0}</h3>
+              <p>Total Checked</p>
+            </div>
+            <div class="summary-card success">
+              <h3>${summary.validNumbers || 0}</h3>
+              <p>Valid Numbers</p>
+            </div>
+          </div>`;
+        summaryDiv.innerHTML = summaryHTML;
+        summaryDiv.style.display = "block";
+      }
+
+      // View verified numbers from database with pagination
+      async function viewVerifiedNumbers(page = 1) {
+        try {
+          currentPage = page;
+          showStatus("Loading verified numbers from database...", "loading");
+
+          const response = await fetch(
+            `/verified-numbers?page=${page}&limit=${itemsPerPage}`
+          );
+          const data = await response.json();
+
+          if (data.success) {
+            const { numbers, pagination } = data.data;
+            totalPages = pagination.totalPages;
+
+            showStatus(
+              `✅ Loaded ${numbers.length} verified numbers from database (Page ${pagination.currentPage}/${pagination.totalPages})`,
+              "success"
+            );
+
+            // Format data for display
+            const formattedResults = numbers.map((num) => ({
+              number: num.number,
+              createdAt: new Date(num.createdAt).toLocaleString(),
+              updatedAt: new Date(num.updatedAt).toLocaleString(),
+            }));
+
+            currentData = {
+              summary: {
+                totalChecked: pagination.total,
+                validNumbers: pagination.total,
+              },
+              results: formattedResults,
+              pagination: pagination,
+            };
+
+            displaySummary(currentData.summary);
+            displayResults(currentData.results);
+            displayPagination(pagination);
+            
+            // Update dropdown value
+            document.getElementById("itemsPerPageSelect").value = itemsPerPage;
+          } else {
+            showStatus(`Error: ${data.message}`, "error");
+          }
+        } catch (error) {
+          showStatus(`Error loading from database: ${error.message}`, "error");
+        }
+      }
+
+      // Display pagination controls
+      function displayPagination(pagination) {
+        const paginationDiv = document.getElementById("pagination");
+
+        if (pagination.totalPages <= 1) {
+          paginationDiv.style.display = "none";
+          return;
+        }
+
+        const paginationHTML = `
+          <button 
+            onclick="viewVerifiedNumbers(${pagination.currentPage - 1})" 
+            ${!pagination.hasPrevPage ? "disabled" : ""}
+            style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);"
+          >
+            ← Previous
+          </button>
+          <span class="pagination-info">
+            Page ${pagination.currentPage} of ${pagination.totalPages}
+            (${pagination.total} total)
+          </span>
+          <button 
+            onclick="viewVerifiedNumbers(${pagination.currentPage + 1})" 
+            ${!pagination.hasNextPage ? "disabled" : ""}
+            style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);"
+          >
+            Next →
+          </button>
+        `;
+
+        paginationDiv.innerHTML = paginationHTML;
+        paginationDiv.style.display = "flex";
+      }
+
+      // Export verified numbers from database as CSV
+      async function exportVerifiedCSV() {
+        try {
+          showStatus("Downloading CSV from database...", "loading");
+
+          // Open download in new window
+          window.location.href = "/verified-numbers/export";
+
+          setTimeout(() => {
+            showStatus("✅ CSV download started", "success");
+          }, 1000);
+        } catch (error) {
+          showStatus(`Error exporting CSV: ${error.message}`, "error");
+        }
+      }
+
+      // Display check results with client-side pagination
+      function displayCheckResults(results) {
+        const data = Array.isArray(results) ? results : results.all || [];
+        
+        // Filter only saved results
+        const savedResults = data.filter(item => item.status === 'saved');
+        
+        // Calculate pagination
+        const totalItems = savedResults.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        const start = (checkResultsPage - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        const paginatedData = savedResults.slice(start, end);
+
+        document.getElementById("tab-all").innerHTML = createTable(paginatedData);
+        document.getElementById("results").style.display = "block";
+
+        // Show pagination for check results
+        if (totalPages > 1) {
+          displayCheckResultsPagination(totalPages, totalItems, savedResults);
+        } else {
+          document.getElementById("pagination").style.display = "none";
+        }
+        
+        // Update dropdown value
+        document.getElementById("itemsPerPageSelect").value = itemsPerPage;
+      }
+
+      // Display pagination for check results
+      function displayCheckResultsPagination(totalPages, totalItems, allData) {
+        const paginationDiv = document.getElementById("pagination");
+        const hasPrevPage = checkResultsPage > 1;
+        const hasNextPage = checkResultsPage < totalPages;
+
+        const paginationHTML = `
+          <button 
+            onclick="navigateCheckResults(${checkResultsPage - 1})" 
+            ${!hasPrevPage ? "disabled" : ""}
+            style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);"
+          >
+            ← Previous
+          </button>
+          <span class="pagination-info">
+            Page ${checkResultsPage} of ${totalPages}
+            (${totalItems} saved numbers)
+          </span>
+          <button 
+            onclick="navigateCheckResults(${checkResultsPage + 1})" 
+            ${!hasNextPage ? "disabled" : ""}
+            style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);"
+          >
+            Next →
+          </button>
+        `;
+
+        paginationDiv.innerHTML = paginationHTML;
+        paginationDiv.style.display = "flex";
+      }
+
+      // Navigate check results pages
+      function navigateCheckResults(page) {
+        checkResultsPage = page;
+        displayCheckResults(currentData.results);
+      }
+
+      // Change items per page
+      function changeItemsPerPage() {
+        const select = document.getElementById("itemsPerPageSelect");
+        itemsPerPage = parseInt(select.value);
+        
+        // Reset to first page
+        currentPage = 1;
+        checkResultsPage = 1;
+        
+        // Refresh current view
+        if (currentData) {
+          if (currentData.pagination) {
+            // Database view - reload from server
+            viewVerifiedNumbers(1);
+          } else {
+            // Check results view - re-render
+            displayCheckResults(currentData.results);
+          }
+        }
+      }
+
+      function displayResults(results) {
+        // Handle both old format (results.all) and new format (results array)
+        const data = Array.isArray(results) ? results : results.all || [];
+        document.getElementById("tab-all").innerHTML = createTable(data);
+        document.getElementById("results").style.display = "block";
+
+        // Hide pagination for database view (handled separately)
+        if (!currentData.pagination) {
+          document.getElementById("pagination").style.display = "none";
+        }
+      }
+
+      function createTable(data) {
+        if (data.length === 0) {
+          return `
+            <div class="empty-state">
+              <p>No numbers found</p>
+            </div>
+          `;
+        }
+
+        return `
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Number</th>
+                <th>Created At</th>
+                <th>Updated At</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data
+                .map(
+                  (item, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td style="font-family: 'Courier New', monospace; font-weight: 600; color: #333;">
+                    ${item.number || item.formatted || item.original}
+                  </td>
+                  <td>${item.createdAt || "-"}</td>
+                  <td>${item.updatedAt || "-"}</td>
+                </tr>
+              `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        `;
+      }
+
+      // Load DB stats on page load
+      loadDBStats();
+    </script>
+  </body>
+</html>

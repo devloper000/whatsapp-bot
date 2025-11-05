@@ -73,5 +73,22 @@ function startServer() {
     console.log(
       `🔄 Reset session: POST http://localhost:${PORT}/reset-session`
     );
+    console.log(`📇 Get contacts: http://localhost:${PORT}/contacts`);
+    console.log(`📊 Contact stats: http://localhost:${PORT}/contacts/stats`);
+    console.log(`📥 Export CSV: http://localhost:${PORT}/export.html`);
+    console.log(
+      `🔍 Check Numbers: http://localhost:${PORT}/check-numbers.html`
+    );
+    console.log(`📋 Numbers List API: http://localhost:${PORT}/numbers-list`);
+    console.log(`✅ Check Numbers API: http://localhost:${PORT}/check-numbers`);
+    console.log(
+      `💾 Verified Numbers DB: http://localhost:${PORT}/verified-numbers`
+    );
+    console.log(
+      `📊 Verified Stats: http://localhost:${PORT}/verified-numbers/stats`
+    );
+    console.log(
+      `📥 Export Verified CSV: http://localhost:${PORT}/verified-numbers/export`
+    );
   });
 }

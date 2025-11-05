@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatsApp Number Validator - All Countries</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.12.17/bundle/libphonenumber-js.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Plus Jakarta Sans", sans-serif;
+      }
+
+      body {
+        background: linear-gradient(
+          135deg,
+          #25d366 0%,
+          #128c7e 50%,
+          #075e54 100%
+        );
+        min-height: 100vh;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .container {
+        max-width: 600px;
+        width: 100%;
+      }
+
+      .card {
+        background: white;
+        border-radius: 24px;
+        padding: 50px 40px;
+        box-shadow: 0 25px 70px rgba(0, 0, 0, 0.3);
+        animation: slideUp 0.5s ease;
+      }
+
+      @keyframes slideUp {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 35px;
+      }
+
+      .logo {
+        font-size: 4em;
+        margin-bottom: 10px;
+        display: block;
+      }
+
+      h1 {
+        color: #128c7e;
+        margin-bottom: 10px;
+        font-size: 2.2em;
+        font-weight: 800;
+      }
+
+      .subtitle {
+        color: #666;
+        font-size: 1.05em;
+        line-height: 1.6;
+        font-weight: 400;
+      }
+
+      .info-box {
+        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+        border-left: 5px solid #25d366;
+        padding: 18px 22px;
+        margin-bottom: 30px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(37, 211, 102, 0.1);
+      }
+
+      .info-box p {
+        color: #2e7d32;
+        line-height: 1.7;
+        margin-bottom: 8px;
+        font-size: 0.95em;
+        font-weight: 500;
+      }
+
+      .info-box p:last-child {
+        margin-bottom: 0;
+      }
+
+      .info-box strong {
+        color: #1b5e20;
+        font-weight: 700;
+      }
+
+      .input-group {
+        margin-bottom: 25px;
+      }
+
+      .input-row {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 15px;
+      }
+
+      label {
+        display: block;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 12px;
+        font-size: 1.05em;
+      }
+
+      .country-select-wrapper {
+        position: relative;
+        min-width: 200px;
+      }
+
+      .country-select {
+        width: 100%;
+        padding: 18px 22px;
+        border: 2px solid #e0e0e0;
+        border-radius: 14px;
+        font-size: 1.1em;
+        font-weight: 600;
+        color: #333;
+        background: #fafafa;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 15px center;
+        padding-right: 45px;
+      }
+
+      .country-select:focus {
+        outline: none;
+        border-color: #25d366;
+        box-shadow: 0 0 0 4px rgba(37, 211, 102, 0.1);
+        background-color: white;
+      }
+
+      .country-code-display {
+        display: flex;
+        align-items: center;
+        padding: 18px 22px;
+        border: 2px solid #e0e0e0;
+        border-radius: 14px;
+        background: #f0f0f0;
+        font-size: 1.1em;
+        font-weight: 700;
+        color: #128c7e;
+        min-width: 120px;
+        justify-content: center;
+        white-space: nowrap;
+      }
+
+      .input-wrapper {
+        position: relative;
+        display: flex;
+        gap: 12px;
+        flex: 1;
+      }
+
+      input {
+        flex: 1;
+        padding: 18px 22px;
+        border: 2px solid #e0e0e0;
+        border-radius: 14px;
+        font-size: 1.15em;
+        font-weight: 600;
+        color: #333;
+        transition: all 0.3s ease;
+        background: #fafafa;
+      }
+
+      input:focus {
+        outline: none;
+        border-color: #25d366;
+        box-shadow: 0 0 0 4px rgba(37, 211, 102, 0.1);
+        background: white;
+      }
+
+      input::placeholder {
+        color: #999;
+        font-weight: 500;
+      }
+
+      button {
+        background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+        color: white;
+        border: none;
+        padding: 18px 35px;
+        border-radius: 14px;
+        font-size: 1.1em;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 6px 25px rgba(37, 211, 102, 0.4);
+        white-space: nowrap;
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 35px rgba(37, 211, 102, 0.5);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .status {
+        padding: 18px 22px;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        font-weight: 600;
+        font-size: 1.05em;
+        display: none;
+        animation: fadeIn 0.3s ease;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      .status.loading {
+        background: linear-gradient(135deg, #fff9c4 0%, #fff59d 100%);
+        color: #f57f17;
+        border-left: 5px solid #fbc02d;
+        display: block;
+      }
+
+      .status.success {
+        background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%);
+        color: #1b5e20;
+        border-left: 5px solid #25d366;
+        display: block;
+      }
+
+      .status.error {
+        background: linear-gradient(135deg, #ffcdd2 0%, #ef9a9a 100%);
+        color: #b71c1c;
+        border-left: 5px solid #e53935;
+        display: block;
+      }
+
+      .loading-spinner {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border: 3px solid rgba(245, 127, 23, 0.2);
+        border-radius: 50%;
+        border-top-color: #f57f17;
+        animation: spin 0.8s linear infinite;
+        margin-right: 12px;
+        vertical-align: middle;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .result-card {
+        display: none;
+        background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
+        border-radius: 16px;
+        padding: 30px;
+        margin-top: 30px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+      }
+
+      .result-card.show {
+        display: block;
+        animation: slideUp 0.4s ease;
+      }
+
+      .result-header {
+        text-align: center;
+        margin-bottom: 25px;
+      }
+
+      .result-icon {
+        font-size: 4em;
+        margin-bottom: 12px;
+        display: block;
+      }
+
+      .result-title {
+        font-size: 1.6em;
+        font-weight: 800;
+        margin-bottom: 8px;
+      }
+
+      .result-title.valid {
+        color: #1b5e20;
+      }
+
+      .result-title.invalid {
+        color: #b71c1c;
+      }
+
+      .result-message {
+        color: #666;
+        font-size: 1.05em;
+        font-weight: 500;
+      }
+
+      .details-grid {
+        display: grid;
+        gap: 15px;
+        margin-top: 25px;
+      }
+
+      .detail-item {
+        background: white;
+        padding: 18px 22px;
+        border-radius: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+      }
+
+      .detail-item:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .detail-label {
+        font-weight: 700;
+        color: #666;
+        font-size: 0.95em;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .detail-value {
+        font-weight: 700;
+        color: #128c7e;
+        font-size: 1.05em;
+        text-align: right;
+        word-break: break-all;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.85em;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .badge.success {
+        background: #c8e6c9;
+        color: #1b5e20;
+      }
+
+      .badge.error {
+        background: #ffcdd2;
+        color: #b71c1c;
+      }
+
+      .badge.info {
+        background: #bbdefb;
+        color: #0d47a1;
+      }
+
+      .contact-profile {
+        text-align: center;
+        padding: 25px;
+        background: white;
+        border-radius: 16px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .profile-picture {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin: 0 auto 15px;
+        border: 4px solid #25d366;
+        box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
+      }
+
+      .profile-picture-placeholder {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+        margin: 0 auto 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3em;
+        color: white;
+        border: 4px solid #25d366;
+        box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
+      }
+
+      .contact-name {
+        font-size: 1.8em;
+        font-weight: 800;
+        color: #128c7e;
+        margin-bottom: 8px;
+      }
+
+      .contact-meta {
+        color: #666;
+        font-size: 0.95em;
+        margin-top: 10px;
+      }
+
+      .actions {
+        margin-top: 25px;
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .secondary-btn {
+        background: linear-gradient(135deg, #64b5f6 0%, #1976d2 100%);
+        box-shadow: 0 6px 25px rgba(25, 118, 210, 0.3);
+      }
+
+      .secondary-btn:hover {
+        box-shadow: 0 10px 35px rgba(25, 118, 210, 0.4);
+      }
+
+      @media (max-width: 640px) {
+        .card {
+          padding: 35px 25px;
+        }
+
+        h1 {
+          font-size: 1.8em;
+        }
+
+        .logo {
+          font-size: 3em;
+        }
+
+        .input-wrapper {
+          flex-direction: column;
+        }
+
+        button {
+          width: 100%;
+        }
+
+        .result-card {
+          padding: 25px 20px;
+        }
+
+        .detail-item {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+        }
+
+        .detail-value {
+          text-align: left;
+        }
+      }
+
+      .examples {
+        background: #f5f5f5;
+        padding: 15px 20px;
+        border-radius: 10px;
+        margin-top: 20px;
+      }
+
+      .examples p {
+        color: #666;
+        font-size: 0.9em;
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+
+      .examples code {
+        background: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-family: "Courier New", monospace;
+        color: #128c7e;
+        font-weight: 600;
+        font-size: 0.95em;
+        margin: 0 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <div class="header">
+          <span class="logo">🌍📱</span>
+          <h1>WhatsApp Number Validator</h1>
+          <p class="subtitle">
+            Check if any phone number from any country is registered on WhatsApp
+          </p>
+        </div>
+
+        <div class="info-box">
+          <p>
+            <strong>🎯 How to use:</strong> Select country, enter phone number,
+            and click "Check Number"
+          </p>
+          <p>
+            <strong>📞 Auto-format:</strong> Country code will be automatically
+            added based on your selection
+          </p>
+          <p>
+            <strong>💾 Auto-save:</strong> Valid numbers are automatically saved
+            to the database
+          </p>
+        </div>
+
+        <div class="input-group">
+          <label for="countrySelect">🌍 Select Country:</label>
+          <div class="input-row">
+            <div class="country-select-wrapper">
+              <select
+                id="countrySelect"
+                class="country-select"
+                onchange="updateCountryCode()"
+              >
+                <!-- Options will be populated by JavaScript -->
+              </select>
+            </div>
+            <div class="country-code-display" id="countryCodeDisplay">+92</div>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label for="phoneNumber">📱 Enter Phone Number:</label>
+          <div class="input-wrapper">
+            <input
+              type="search"
+              id="phoneNumber"
+              placeholder="e.g., 3001234567"
+            />
+            <button onclick="checkNumber()" id="checkBtn">
+              🔍 Check Number
+            </button>
+          </div>
+        </div>
+
+        <div class="examples">
+          <p>
+            <strong>💡 Tip:</strong> Just enter the number without country code.
+            The system will automatically add it based on selected country.
+          </p>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div id="resultCard" class="result-card">
+          <div class="result-header">
+            <span id="resultIcon" class="result-icon"></span>
+            <h2 id="resultTitle" class="result-title"></h2>
+            <p id="resultMessage" class="result-message"></p>
+          </div>
+
+          <div id="detailsGrid" class="details-grid"></div>
+
+          <div class="actions">
+            <button onclick="checkAnother()" class="secondary-btn">
+              🔄 Check Another Number
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Countries list - will be loaded from API
+      let countries = [];
+      let selectedCountry = null;
+
+      // Load countries list from API
+      async function loadCountries() {
+        try {
+          const response = await fetch("/countries");
+          const data = await response.json();
+
+          if (data.success && data.countries) {
+            countries = data.countries;
+            // Set default to Pakistan or first country
+            selectedCountry =
+              countries.find((c) => c.code === "PK") || countries[0];
+            initializeCountries();
+          } else {
+            console.error("Failed to load countries:", data.message);
+            // Fallback to default countries if API fails
+            loadFallbackCountries();
+          }
+        } catch (error) {
+          console.error("Error loading countries:", error);
+          // Fallback to default countries if API fails
+          loadFallbackCountries();
+        }
+      }
+
+      // Fallback countries list (in case API fails)
+      function loadFallbackCountries() {
+        countries = [
+          { code: "PK", name: "Pakistan", callingCode: "92", flag: "🇵🇰" },
+          { code: "US", name: "United States", callingCode: "1", flag: "🇺🇸" },
+          { code: "IN", name: "India", callingCode: "91", flag: "🇮🇳" },
+          { code: "GB", name: "United Kingdom", callingCode: "44", flag: "🇬🇧" },
+          {
+            code: "AE",
+            name: "United Arab Emirates",
+            callingCode: "971",
+            flag: "🇦🇪",
+          },
+          { code: "SA", name: "Saudi Arabia", callingCode: "966", flag: "🇸🇦" },
+          { code: "CA", name: "Canada", callingCode: "1", flag: "🇨🇦" },
+          { code: "AU", name: "Australia", callingCode: "61", flag: "🇦🇺" },
+        ];
+        selectedCountry =
+          countries.find((c) => c.code === "PK") || countries[0];
+        initializeCountries();
+      }
+
+      // Initialize countries dropdown
+      function initializeCountries() {
+        const select = document.getElementById("countrySelect");
+        // Clear existing options
+        select.innerHTML = "";
+
+        countries.forEach((country) => {
+          const option = document.createElement("option");
+          option.value = country.code;
+          option.textContent = `${country.flag} ${country.name} (+${country.callingCode})`;
+          if (country.code === "PK") {
+            option.selected = true;
+          }
+          select.appendChild(option);
+        });
+        updateCountryCode();
+      }
+
+      // Update country code display
+      function updateCountryCode() {
+        const select = document.getElementById("countrySelect");
+        const selectedCode = select.value;
+        selectedCountry =
+          countries.find((c) => c.code === selectedCode) || countries[0];
+        document.getElementById(
+          "countryCodeDisplay"
+        ).textContent = `+${selectedCountry.callingCode}`;
+
+        // Update placeholder based on country
+        const phoneInput = document.getElementById("phoneNumber");
+        if (selectedCountry.code === "PK") {
+          phoneInput.placeholder = "e.g., 3001234567";
+        } else if (
+          selectedCountry.code === "US" ||
+          selectedCountry.code === "CA"
+        ) {
+          phoneInput.placeholder = "e.g., 2015551234";
+        } else if (selectedCountry.code === "IN") {
+          phoneInput.placeholder = "e.g., 9876543210";
+        } else {
+          phoneInput.placeholder = "Enter phone number";
+        }
+      }
+
+      // Allow Enter key to trigger check
+      document
+        .getElementById("phoneNumber")
+        .addEventListener("keypress", function (e) {
+          if (e.key === "Enter") {
+            checkNumber();
+          }
+        });
+
+      async function checkNumber() {
+        const phoneInput = document.getElementById("phoneNumber");
+        const checkBtn = document.getElementById("checkBtn");
+        const statusDiv = document.getElementById("status");
+        const resultCard = document.getElementById("resultCard");
+
+        let phoneNumber = phoneInput.value.trim();
+
+        // Validate input
+        if (!phoneNumber) {
+          showStatus("Please enter a phone number", "error");
+          return;
+        }
+
+        // Add country code if not present
+        if (
+          !phoneNumber.startsWith("+") &&
+          !phoneNumber.startsWith(selectedCountry.callingCode)
+        ) {
+          phoneNumber = selectedCountry.callingCode + phoneNumber;
+        }
+
+        // Ensure + prefix
+        if (!phoneNumber.startsWith("+")) {
+          phoneNumber = "+" + phoneNumber;
+        }
+
+        // Disable button and show loading
+        checkBtn.disabled = true;
+        resultCard.classList.remove("show");
+        showStatus("Checking number on WhatsApp...", "loading");
+
+        try {
+          // Call the API with country code
+          const response = await fetch(
+            `/check-single-number?number=${encodeURIComponent(
+              phoneNumber
+            )}&countryCode=${encodeURIComponent(selectedCountry.code)}`
+          );
+          const data = await response.json();
+
+          if (data.success) {
+            // Hide status and show result card
+            statusDiv.style.display = "none";
+            displayResult(data);
+          } else {
+            // Show error message
+            showStatus(
+              data.message || data.error || "Invalid number format",
+              "error"
+            );
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          showStatus(
+            "Failed to check number. Please ensure WhatsApp is connected.",
+            "error"
+          );
+        } finally {
+          checkBtn.disabled = false;
+        }
+      }
+
+      function showStatus(message, type) {
+        const statusDiv = document.getElementById("status");
+        statusDiv.className = `status ${type}`;
+
+        if (type === "loading") {
+          statusDiv.innerHTML = `<span class="loading-spinner"></span>${message}`;
+        } else {
+          statusDiv.textContent = message;
+        }
+      }
+
+      function displayResult(data) {
+        const resultCard = document.getElementById("resultCard");
+        const resultIcon = document.getElementById("resultIcon");
+        const resultTitle = document.getElementById("resultTitle");
+        const resultMessage = document.getElementById("resultMessage");
+        const detailsGrid = document.getElementById("detailsGrid");
+
+        const isValid = data.validation.isRegisteredOnWhatsApp;
+
+        // Set icon and title
+        if (isValid) {
+          resultIcon.textContent = "✅";
+          resultTitle.textContent = "Valid Number!";
+          resultTitle.className = "result-title valid";
+          resultMessage.textContent = data.message;
+        } else {
+          resultIcon.textContent = "❌";
+          resultTitle.textContent = "Invalid Number";
+          resultTitle.className = "result-title invalid";
+          resultMessage.textContent = data.message;
+        }
+
+        // Build details grid
+        let detailsHTML = "";
+
+        // Contact Profile Section (if contact details available)
+        if (data.contact && isValid) {
+          const contact = data.contact;
+          // Use name, then pushname, then number, then "Unknown"
+          const displayName =
+            contact.name ||
+            contact.pushname ||
+            data.number.international ||
+            "Unknown";
+
+          // Generate initials from name or use first 2 digits of number
+          let initials = "??";
+          if (
+            displayName &&
+            displayName !== "Unknown" &&
+            displayName !== data.number.international
+          ) {
+            const nameParts = displayName
+              .split(" ")
+              .filter((p) => p.length > 0);
+            if (nameParts.length > 0) {
+              initials = nameParts
+                .map((n) => n[0])
+                .join("")
+                .toUpperCase()
+                .substring(0, 2);
+            } else {
+              initials = displayName.substring(0, 2).toUpperCase();
+            }
+          } else if (data.number.national) {
+            initials = data.number.national.substring(0, 2);
+          }
+
+          detailsHTML += `
+            <div class="contact-profile">
+              ${
+                contact.profilePicUrl
+                  ? `<img src="${contact.profilePicUrl}" alt="${displayName}" class="profile-picture" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                     <div class="profile-picture-placeholder" style="display:none;">${initials}</div>`
+                  : `<div class="profile-picture-placeholder">${initials}</div>`
+              }
+              <div class="contact-name">${displayName}</div>
+              <div class="contact-meta">
+                ${
+                  contact.isBusiness
+                    ? '<span class="badge info">💼 Business</span> '
+                    : ""
+                }
+                ${
+                  contact.isVerified
+                    ? '<span class="badge success">✓ Verified</span> '
+                    : ""
+                }
+                ${
+                  contact.isMyContact
+                    ? '<span class="badge success">📱 Saved Contact</span>'
+                    : ""
+                }
+              </div>
+            </div>
+          `;
+        }
+
+        // International Number
+        if (data.number.international) {
+          detailsHTML += createDetailItem(
+            "🌍",
+            "International Format",
+            data.number.international
+          );
+        }
+
+        // Country Code
+        if (data.number.countryCode) {
+          const country = countries.find(
+            (c) => c.code === data.number.countryCode
+          );
+          const countryDisplay = country
+            ? `${country.flag} ${country.name} (${data.number.countryCode})`
+            : data.number.countryCode;
+          detailsHTML += createDetailItem("🌍", "Country", countryDisplay);
+        }
+
+        // Calling Code
+        if (data.number.callingCode) {
+          detailsHTML += createDetailItem(
+            "📞",
+            "Country Code",
+            `+${data.number.callingCode}`
+          );
+        }
+
+        // Contact Details (if available)
+        if (data.contact && isValid) {
+          const contact = data.contact;
+
+          // Name (use pushname if name not available)
+          const contactName = contact.name || contact.pushname;
+          if (contactName) {
+            detailsHTML += createDetailItem("👤", "Name", contactName);
+          }
+
+          // Pushname (WhatsApp display name) - only show if different from name
+          if (
+            contact.pushname &&
+            contact.name &&
+            contact.pushname !== contact.name
+          ) {
+            detailsHTML += createDetailItem(
+              "📝",
+              "WhatsApp Display Name",
+              contact.pushname
+            );
+          } else if (contact.pushname && !contact.name) {
+            // If no name but pushname exists, show it as name
+            detailsHTML += createDetailItem(
+              "👤",
+              "WhatsApp Name",
+              contact.pushname
+            );
+          }
+
+          // Short Name
+          if (contact.shortName) {
+            detailsHTML += createDetailItem(
+              "🏷️",
+              "Short Name",
+              contact.shortName
+            );
+          }
+
+          // Business Status
+          if (contact.isBusiness) {
+            detailsHTML += `
+              <div class="detail-item">
+                <div class="detail-label">
+                  <span>💼</span> Account Type
+                </div>
+                <div class="detail-value">
+                  <span class="badge info">Business Account</span>
+                  ${
+                    contact.isVerified
+                      ? '<span class="badge success">✓ Verified</span>'
+                      : ""
+                  }
+                  ${
+                    contact.isEnterprise
+                      ? '<span class="badge info">Enterprise</span>'
+                      : ""
+                  }
+                </div>
+              </div>
+            `;
+          }
+
+          // Contact Status
+          detailsHTML += `
+            <div class="detail-item">
+              <div class="detail-label">
+                <span>📱</span> Contact Status
+              </div>
+              <div class="detail-value">
+                ${
+                  contact.isMyContact
+                    ? '<span class="badge success">✓ Saved in Contacts</span>'
+                    : '<span class="badge">Not in Contacts</span>'
+                }
+              </div>
+            </div>
+          `;
+        }
+
+        // WhatsApp Status
+        const statusBadge = isValid
+          ? '<span class="badge success">✓ Registered</span>'
+          : '<span class="badge error">✗ Not Registered</span>';
+        detailsHTML += `
+          <div class="detail-item">
+            <div class="detail-label">
+              <span>📲</span> WhatsApp Status
+            </div>
+            <div class="detail-value">${statusBadge}</div>
+          </div>
+        `;
+
+        // Database Status (only if valid)
+        if (isValid) {
+          let dbStatus = "";
+          if (data.savedToDatabase) {
+            dbStatus = '<span class="badge success">✓ Saved to DB</span>';
+          } else if (data.alreadyInDatabase) {
+            dbStatus = '<span class="badge info">ℹ Already in DB</span>';
+          } else if (data.dbError) {
+            dbStatus = '<span class="badge error">✗ DB Error</span>';
+          }
+
+          if (dbStatus) {
+            detailsHTML += `
+              <div class="detail-item">
+                <div class="detail-label">
+                  <span>💾</span> Database Status
+                </div>
+                <div class="detail-value">${dbStatus}</div>
+              </div>
+            `;
+          }
+        }
+
+        detailsGrid.innerHTML = detailsHTML;
+        resultCard.classList.add("show");
+      }
+
+      function createDetailItem(icon, label, value) {
+        return `
+          <div class="detail-item">
+            <div class="detail-label">
+              <span>${icon}</span> ${label}
+            </div>
+            <div class="detail-value">${value}</div>
+          </div>
+        `;
+      }
+
+      function checkAnother() {
+        document.getElementById("phoneNumber").value = "";
+        document.getElementById("phoneNumber").focus();
+        document.getElementById("resultCard").classList.remove("show");
+        document.getElementById("status").style.display = "none";
+      }
+
+      // Auto-focus on input when page loads
+      window.onload = function () {
+        loadCountries();
+        document.getElementById("phoneNumber").focus();
+      };
+    </script>
+  </body>
+</html>
