@@ -31,9 +31,10 @@ let store = null;
 let sessionCheckInterval = null;
 let activeSessionsCount = 0;
 
-// Session timeout: 5 minutes for both Live Chat and Talk To Us
-const SESSION_TIMEOUT_MINUTES = 5;
-const SESSION_TIMEOUT_MS = SESSION_TIMEOUT_MINUTES * 60 * 1000;
+// At the top of the file, add timeout configuration
+// Default TALK_TO_US_TIMEOUT is 5 minutes to match Live Chat expiry behaviour
+const TALK_TO_US_TIMEOUT = process.env.TALK_TO_US_TIMEOUT_MINUTES || 5;
+const LIVE_CHAT_TIMEOUT = process.env.LIVE_CHAT_TIMEOUT_MINUTES || 3;
 
 /**
  * Start session checker only when needed
@@ -48,7 +49,7 @@ function startSessionChecker() {
   sessionCheckInterval = setInterval(async () => {
     await checkInactiveSessions();
 
-    // Stop interval if no active sessions
+    // SMART: Stop interval if no active sessions
     if (activeSessionsCount === 0) {
       stopSessionChecker();
     }
@@ -70,6 +71,8 @@ function stopSessionChecker() {
 
 /**
  * Safely send a WhatsApp message to a user by id/number
+ * - Normalizes id to @c.us if needed
+ * - Resolves numberId via client to ensure deliverability
  */
 async function sendDirectMessage(rawUserId, text) {
   if (!whatsappClient || !isClientReady) return false;
@@ -78,7 +81,10 @@ async function sendDirectMessage(rawUserId, text) {
     const userId = String(rawUserId || "").trim();
     if (!userId) return false;
 
+    // If it's a plain number, add @c.us
     const jid = userId.endsWith("@c.us") ? userId : `${userId}@c.us`;
+
+    // Resolve number id (handles LID vs non-LID, and validation)
     const numberId = await whatsappClient.getNumberId(jid);
     const targetId = numberId?._serialized || jid;
 
@@ -92,6 +98,8 @@ async function sendDirectMessage(rawUserId, text) {
 
 /**
  * Get or create user session
+ * @param {string} userId - WhatsApp user ID
+ * @returns {Promise<object>} - User session object
  */
 async function getOrCreateUserSession(userId) {
   try {
@@ -106,12 +114,14 @@ async function getOrCreateUserSession(userId) {
       await session.save();
       console.log(`📝 New session created for user: ${userId}`);
     } else {
+      // Update last interaction time
       session.lastInteraction = new Date();
       await session.save();
     }
     return session;
   } catch (error) {
     console.error("❌ Error getting user session:", error.message);
+    // Return default session object if DB fails
     return {
       userId,
       liveChatEnabled: false,
@@ -122,7 +132,8 @@ async function getOrCreateUserSession(userId) {
 }
 
 /**
- * Disable Live Chat for a user
+ * Disable Live Chat and reset session for a user
+ * @param {string} userId - WhatsApp user ID
  */
 async function disableLiveChat(userId) {
   try {
@@ -133,8 +144,11 @@ async function disableLiveChat(userId) {
     );
 
     console.log(`✅ Live Chat disabled for user: ${userId}`);
+
+    // Decrease active count
     activeSessionsCount = Math.max(0, activeSessionsCount - 1);
 
+    // STOP interval if no active sessions
     if (activeSessionsCount === 0 && sessionCheckInterval) {
       stopSessionChecker();
     }
@@ -144,58 +158,126 @@ async function disableLiveChat(userId) {
 }
 
 /**
- * Disable Talk To Us for a user
+ * Check and disable "Talk To Us" sessions after timeout
  */
-async function disableTalkToUs(userId) {
+async function checkTalkToUsSessions() {
   try {
-    await UserSession.findOneAndUpdate(
-      { userId },
-      { talkToUsSelected: false, lastInteraction: new Date() },
-      { upsert: true, new: true }
+    const timeoutMs = TALK_TO_US_TIMEOUT * 60 * 1000;
+    const timeoutAgo = new Date(Date.now() - timeoutMs);
+
+    // Find Talk To Us sessions that are inactive for specified timeout
+    const inactiveTalkToUs = await UserSession.find({
+      talkToUsSelected: true,
+      lastInteraction: { $lt: timeoutAgo },
+    })
+      .select("userId lastInteraction")
+      .lean();
+
+    if (inactiveTalkToUs.length === 0) {
+      return;
+    }
+
+    console.log(
+      `📊 Found ${inactiveTalkToUs.length} inactive "Talk To Us" sessions (${TALK_TO_US_TIMEOUT} min timeout)`
     );
 
-    console.log(`✅ Talk To Us disabled for user: ${userId}`);
-    activeSessionsCount = Math.max(0, activeSessionsCount - 1);
+    // Bulk update - disable Talk To Us
+    const userIds = inactiveTalkToUs.map((s) => s.userId);
+    await UserSession.updateMany(
+      { userId: { $in: userIds } },
+      {
+        $set: {
+          talkToUsSelected: false,
+          lastInteraction: new Date(),
+        },
+      }
+    );
 
-    if (activeSessionsCount === 0 && sessionCheckInterval) {
-      stopSessionChecker();
+    console.log(
+      `✅ Disabled ${inactiveTalkToUs.length} "Talk To Us" sessions (${TALK_TO_US_TIMEOUT} min timeout)`
+    );
+
+    // Optionally send notification messages
+    let successCount = 0;
+    let failCount = 0;
+    const now = new Date();
+
+    for (const session of inactiveTalkToUs) {
+      const timeDiff = Math.floor(
+        (now - new Date(session.lastInteraction)) / 1000 / 60
+      );
+
+      const expiryMessage = `⏰ *Session Expired*
+
+Your "Talk To Us" request has been automatically cleared due to inactivity (${TALK_TO_US_TIMEOUT} minutes).
+
+🔄 *To start again:*
+Send any message or reply with:
+*1️⃣* - Talk To Us
+*2️⃣* - Live Chat (recommended for information)
+
+Thank you! 😊`;
+
+      try {
+        const ok = await sendDirectMessage(session.userId, expiryMessage);
+        if (ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (msgError) {
+        console.error(
+          `❌ Error sending to ${session.userId}:`,
+          msgError.message
+        );
+        failCount++;
+      }
+
+      // Small delay to avoid rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
+
+    console.log(
+      `✅ Talk To Us expiry complete: ${successCount} sent, ${failCount} failed`
+    );
   } catch (error) {
-    console.error("❌ Error disabling Talk To Us:", error.message);
+    console.error("❌ Error checking Talk To Us sessions:", error.message);
   }
 }
 
 /**
- * Check and disable inactive sessions (both Live Chat and Talk To Us)
+ * Check and disable Live Chat for inactive users (configurable timeout)
  */
 async function checkInactiveSessions() {
   try {
-    // Count active sessions
-    const liveChatCount = await UserSession.countDocuments({
+    // Quick count check first (lightweight query)
+    activeSessionsCount = await UserSession.countDocuments({
       liveChatEnabled: true,
     });
+
+    // Count Talk To Us sessions too for checking
     const talkToUsCount = await UserSession.countDocuments({
       talkToUsSelected: true,
     });
 
-    activeSessionsCount = liveChatCount + talkToUsCount;
-
-    if (activeSessionsCount === 0) {
+    // If no active sessions of any type, skip processing
+    if (activeSessionsCount === 0 && talkToUsCount === 0) {
       console.log("✅ No active sessions - skipping check");
       return;
     }
 
     console.log(
-      `🔍 Checking ${liveChatCount} Live Chat + ${talkToUsCount} Talk To Us sessions...`
+      `🔍 Checking ${activeSessionsCount} Live Chat + ${talkToUsCount} Talk To Us sessions...`
     );
 
-    const timeoutAgo = new Date(Date.now() - SESSION_TIMEOUT_MS);
+    const liveChatTimeoutMs = LIVE_CHAT_TIMEOUT * 60 * 1000;
+    const liveChatTimeoutAgo = new Date(Date.now() - liveChatTimeoutMs);
     const now = new Date();
 
     // Check Live Chat sessions
     const inactiveLiveChatSessions = await UserSession.find({
       liveChatEnabled: true,
-      lastInteraction: { $lt: timeoutAgo },
+      lastInteraction: { $lt: liveChatTimeoutAgo },
     })
       .select("userId lastInteraction")
       .lean();
@@ -205,7 +287,7 @@ async function checkInactiveSessions() {
         `📊 Found ${inactiveLiveChatSessions.length} inactive Live Chat sessions`
       );
 
-      // Bulk update
+      // Bulk update first
       const userIds = inactiveLiveChatSessions.map((s) => s.userId);
       await UserSession.updateMany(
         { userId: { $in: userIds } },
@@ -217,14 +299,14 @@ async function checkInactiveSessions() {
         }
       );
 
-      // Send expiry messages
+      // Send messages
       let successCount = 0;
       let failCount = 0;
 
       for (const session of inactiveLiveChatSessions) {
         const expiryMessage = `⏰ *Session Expired*
 
-Your Live Chat session has been automatically ended due to inactivity (${SESSION_TIMEOUT_MINUTES} minutes).
+Your Live Chat session has been automatically ended due to inactivity (${LIVE_CHAT_TIMEOUT} minutes).
 
 🔄 *To start again:*
 Send any message or reply with:
@@ -235,8 +317,11 @@ Thank you for using our service! 😊`;
 
         try {
           const ok = await sendDirectMessage(session.userId, expiryMessage);
-          if (ok) successCount++;
-          else failCount++;
+          if (ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
         } catch (msgError) {
           console.error(
             `❌ Error sending to ${session.userId}:`,
@@ -251,73 +336,18 @@ Thank you for using our service! 😊`;
       console.log(
         `✅ Live Chat expiry complete: ${successCount} sent, ${failCount} failed`
       );
+
+      // Update active count
+      activeSessionsCount = await UserSession.countDocuments({
+        liveChatEnabled: true,
+      });
     }
 
-    // Check Talk To Us sessions (same timeout logic)
-    const inactiveTalkToUsSessions = await UserSession.find({
-      talkToUsSelected: true,
-      lastInteraction: { $lt: timeoutAgo },
-    })
-      .select("userId lastInteraction")
-      .lean();
+    // Check Talk To Us sessions
+    await checkTalkToUsSessions();
 
-    if (inactiveTalkToUsSessions.length > 0) {
-      console.log(
-        `📊 Found ${inactiveTalkToUsSessions.length} inactive Talk To Us sessions`
-      );
-
-      // Bulk update
-      const userIds = inactiveTalkToUsSessions.map((s) => s.userId);
-      await UserSession.updateMany(
-        { userId: { $in: userIds } },
-        {
-          $set: {
-            talkToUsSelected: false,
-            lastInteraction: now,
-          },
-        }
-      );
-
-      // Send expiry messages
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const session of inactiveTalkToUsSessions) {
-        const expiryMessage = `⏰ *Session Expired*
-
-Your "Talk To Us" request has been automatically cleared due to inactivity (${SESSION_TIMEOUT_MINUTES} minutes).
-
-🔄 *To start again:*
-Send any message or reply with:
-*1️⃣* - Talk To Us
-*2️⃣* - Live Chat (recommended for information)
-
-Thank you! 😊`;
-
-        try {
-          const ok = await sendDirectMessage(session.userId, expiryMessage);
-          if (ok) successCount++;
-          else failCount++;
-        } catch (msgError) {
-          console.error(
-            `❌ Error sending to ${session.userId}:`,
-            msgError.message
-          );
-          failCount++;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
-
-      console.log(
-        `✅ Talk To Us expiry complete: ${successCount} sent, ${failCount} failed`
-      );
-    }
-
-    // Update active count
-    activeSessionsCount = await UserSession.countDocuments({
-      $or: [{ liveChatEnabled: true }, { talkToUsSelected: true }],
-    });
+    // Cleanup old sessions
+    await cleanupOldSessionsIfNeeded();
 
     console.log("⚡ checkInactiveSessions completed");
   } catch (error) {
@@ -325,8 +355,38 @@ Thank you! 😊`;
   }
 }
 
+let lastCleanupTime = Date.now();
+
+async function cleanupOldSessionsIfNeeded() {
+  const oneHour = 10 * 60 * 1000;
+  const now = Date.now();
+  console.log("🚀 ~ cleanupOldSessionsIfNeeded ~ now:", now);
+
+  // Only cleanup once per day
+  if (now - lastCleanupTime < oneHour) {
+    return;
+  }
+
+  try {
+    const oneHourAgo = new Date(now - oneHour);
+    console.log("🚀 ~ cleanupOldSessionsIfNeeded ~ oneHourAgo:", oneHourAgo);
+    const result = await UserSession.deleteMany({
+      liveChatEnabled: false,
+      lastInteraction: { $lt: oneHourAgo },
+    });
+
+    if (result.deletedCount > 0) {
+      console.log(`🗑️ Cleaned up ${result.deletedCount} old sessions (>6h)`);
+    }
+
+    lastCleanupTime = now;
+  } catch (error) {
+    console.error("❌ Error cleaning old sessions:", error.message);
+  }
+}
 /**
  * Enable Live Chat for a user
+ * @param {string} userId - WhatsApp user ID
  */
 async function enableLiveChat(userId) {
   try {
@@ -343,6 +403,7 @@ async function enableLiveChat(userId) {
 
     console.log(`✅ Live Chat enabled for user: ${userId}`);
 
+    // START interval when first user enables live chat
     if (!sessionCheckInterval) {
       startSessionChecker();
     }
@@ -353,9 +414,6 @@ async function enableLiveChat(userId) {
   }
 }
 
-/**
- * Enable Talk To Us for a user
- */
 async function enableTalkToUs(userId) {
   try {
     await UserSession.findOneAndUpdate(
@@ -371,6 +429,7 @@ async function enableTalkToUs(userId) {
 
     console.log(`✅ Talk To Us enabled for user: ${userId}`);
 
+    // START interval when first user enables live chat
     if (!sessionCheckInterval) {
       startSessionChecker();
     }
@@ -380,12 +439,14 @@ async function enableTalkToUs(userId) {
     console.error("❌ Error enabling Talk To Us:", error.message);
   }
 }
-
 /**
- * Send welcome message with options
+ * Send welcome message with interactive buttons/list
+ * @param {Message} message - WhatsApp message object
  */
 async function sendWelcomeButtons(message) {
   try {
+    // WhatsApp-web.js doesn't properly support buttons/list messages anymore
+    // So we'll use a well-formatted text message that looks professional
     const welcomeMessage = `👋 *Hello! How can I help you today?*
 
 Please select an option by replying with the number:
@@ -399,9 +460,10 @@ Start chatting with our bot
 Reply with *1* or *2* to select your option.`;
 
     await message.reply(welcomeMessage);
-    console.log("✅ Welcome message sent");
+    console.log("✅ Welcome message sent (formatted text format)");
   } catch (error) {
     console.error("❌ Error sending welcome message:", error.message);
+    // Last resort fallback
     try {
       await message.reply(
         "👋 Hello! How can I help you today?\n\nPlease reply:\n1️⃣ - Talk To Us\n2️⃣ - Live Chat (recommended for information)"
@@ -416,13 +478,16 @@ Reply with *1* or *2* to select your option.`;
 }
 
 /**
- * Handle user selection (button or text)
+ * Handle button click or text-based selection
+ * @param {Message} message - WhatsApp message object
+ * @param {string} selectedOption - Selected option text or button ID
  */
 async function handleUserSelection(message, selectedOption) {
   const userId = message.from;
   const messageBody = message.body?.toLowerCase().trim() || "";
   const selectedOptionLower = selectedOption?.toLowerCase().trim() || "";
 
+  // Check if user clicked a button or typed a selection
   const isLiveChat =
     selectedOptionLower.includes("live_chat") ||
     selectedOptionLower.includes("live chat") ||
@@ -448,31 +513,39 @@ async function handleUserSelection(message, selectedOption) {
   } else if (isTalkToUs) {
     await enableTalkToUs(userId);
     await message.reply(
-      "Thank you for your interest. Our team will contact you soon.\n\nIf you don't get any answer from our team.\nType 2️⃣ to start live chat with our assistant."
+      "Thank you for your interest. Our team will contact you soon. \n\nIf you Don't get any Answer to our team.\nType 2️⃣ to start live chart with our assistant."
     );
-    console.log(`ℹ️  User ${userId} selected Talk To Us`);
+    console.log(`ℹ️  User ${userId} selected Talk To Us - no action taken`);
   } else {
+    // Invalid selection, send buttons again
     await sendWelcomeButtons(message);
   }
 }
 
 /**
- * Handle incoming WhatsApp messages
+ * Handle incoming WhatsApp messages and send to n8n
+ * @param {Message} message - WhatsApp message object
  */
 async function handleIncomingMessage(message) {
   try {
+    // Skip if message is from status broadcast
     if (message.from === "status@broadcast") {
       return;
     }
 
+    // Skip group messages
     const chat = await message.getChat();
     if (chat.isGroup) {
       return;
     }
 
     const userId = message.from;
+
+    // Get user session
     const session = await getOrCreateUserSession(userId);
 
+    // Check if message is a button click (interactive message)
+    // Button clicks can be detected by checking message.type or message.body for button IDs
     const messageBody = message.body?.toLowerCase().trim() || "";
     const isButtonClick =
       message.type === "buttons_response" ||
@@ -483,6 +556,7 @@ async function handleIncomingMessage(message) {
       message.selectedButtonId ||
       message.selectedRowId;
 
+    // Handle button clicks
     if (isButtonClick) {
       const selectedOption =
         message.selectedButtonId || message.selectedRowId || message.body;
@@ -490,9 +564,9 @@ async function handleIncomingMessage(message) {
       return;
     }
 
-    // Check if Live Chat is enabled
+    // Check if user has enabled Live Chat
     if (!session.liveChatEnabled) {
-      // Check if user is trying to select an option
+      // Check if user is trying to select an option via text
       if (
         messageBody.includes("live chat") ||
         messageBody.includes("talk to us") ||
@@ -505,46 +579,60 @@ async function handleIncomingMessage(message) {
         return;
       }
 
-      // If Talk To Us is selected, check expiry
+      // If user had selected Talk To Us before, check expiry similarly to Live Chat
       if (session.talkToUsSelected) {
-        const lastInteraction = new Date(session.lastInteraction || Date.now());
-        const timeoutAgo = new Date(Date.now() - SESSION_TIMEOUT_MS);
-
-        if (lastInteraction < timeoutAgo) {
-          await disableTalkToUs(userId);
-
-          const expiryMessage = `⏰ *Session Expired*
-
-Your "Talk To Us" request has been automatically cleared due to inactivity (${SESSION_TIMEOUT_MINUTES} minutes).
-
-🔄 *To start again:*
-Send any message or reply with:
-*1️⃣* - Talk To Us
-*2️⃣* - Live Chat (recommended for information)
-
-Thank you! 😊`;
-
-          await message.reply(expiryMessage);
-          console.log(
-            `⏰ Talk To Us expired for user ${userId} due to inactivity`
+        try {
+          const lastInteraction = new Date(
+            session.lastInteraction || Date.now()
           );
+          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+          // If Talk To Us session is older than 5 minutes, expire it and notify user
+          if (lastInteraction < fiveMinutesAgo) {
+            // Disable Talk To Us and update timestamps
+            await UserSession.findOneAndUpdate(
+              { userId },
+              {
+                talkToUsSelected: false,
+                lastInteraction: new Date(),
+                promptedAt: new Date(),
+              },
+              { upsert: true }
+            );
+
+            const expiryMessage = `⏰ *Session Expired*\n\nYour "Talk To Us" request has been automatically cleared due to inactivity (5 minutes).\n\n🔄 *To start again:*\nSend any message or reply with:\n*1️⃣* - Talk To Us\n*2️⃣* - Live Chat (recommended for information)\n\nThank you! 😊`;
+
+            try {
+              await message.reply(expiryMessage);
+              console.log(
+                `⏰ Talk To Us expired for user ${userId} due to inactivity`
+              );
+            } catch (replyErr) {
+              console.error(
+                `❌ Failed to send Talk To Us expiry message to ${userId}:`,
+                replyErr.message
+              );
+            }
+
+            // Do not prompt again immediately
+            return;
+          }
+        } catch (err) {
+          console.error("❌ Error checking Talk To Us expiry:", err.message);
+          // If anything goes wrong, fall back to staying silent
           return;
         }
-        // Update last interaction for Talk To Us
-        await UserSession.findOneAndUpdate(
-          { userId },
-          { lastInteraction: new Date() },
-          { upsert: true }
-        );
+        // If not expired, stay silent
         return;
       }
 
-      // Rate-limit welcome prompt
+      // Rate-limit the welcome prompt: only send if never sent or older than 5 minutes
       const now = Date.now();
       const promptedAtTs = session.promptedAt
         ? new Date(session.promptedAt).getTime()
         : 0;
-      if (!promptedAtTs || now - promptedAtTs > SESSION_TIMEOUT_MS) {
+      const fiveMinutesMs = 5 * 60 * 1000;
+      if (!promptedAtTs || now - promptedAtTs > fiveMinutesMs) {
         await sendWelcomeButtons(message);
         await UserSession.findOneAndUpdate(
           { userId },
@@ -555,35 +643,27 @@ Thank you! 😊`;
       return;
     }
 
-    // Check if user wants to end Live Chat
-    if (messageBody === "e") {
+    // Check if user wants to end Live Chat (E command)
+    if (messageBody === "e" || messageBody === "E") {
       await disableLiveChat(userId);
       await message.reply(
-        "✅ Live Chat ended.\n\n💡 Tip: Send a message anytime to start again!\n\nType *1️⃣* to Talk To Us\nType *2️⃣* to start Live Chat again."
+        "✅ Live Chat ended.\n\n💡 Tip: Send a message anytime to start again! \n\nType *1️⃣* to Talk To Us \nType *2️⃣* to start Live Chat again."
       );
       console.log(`🛑 User ${userId} ended Live Chat`);
       return;
     }
 
-    // Check if Live Chat session expired
+    // Check if session is inactive (5 minutes timeout)
     const lastInteraction = new Date(session.lastInteraction);
-    const timeoutAgo = new Date(Date.now() - SESSION_TIMEOUT_MS);
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
-    if (lastInteraction < timeoutAgo) {
+    if (lastInteraction < fiveMinutesAgo) {
       await disableLiveChat(userId);
       await message.reply(
-        `⏰ *Session Expired*
-
-Your Live Chat session has been automatically ended due to inactivity (${SESSION_TIMEOUT_MINUTES} minutes).
-
-🔄 *To start again:*
-Send any message or reply with:
-*1️⃣* - Talk To Us
-*2️⃣* - Live Chat (recommended for information)
-
-Thank you for using our service! 😊`
+        "⏰ *Session Expired*\n\nYour Live Chat session has been automatically ended due to inactivity (5 minutes).\n\n🔄 *To start again:*\nSend any message or reply with:\n*1️⃣* - Talk To Us\n*2️⃣* - Live Chat (recommended for information)\n\nThank you for using our service! 😊"
       );
       console.log(`⏰ Live Chat expired for user ${userId} due to inactivity`);
+      // Mark prompt suppression to avoid immediate re-prompt spam
       await UserSession.findOneAndUpdate(
         { userId },
         { promptedAt: new Date() },
@@ -592,15 +672,17 @@ Thank you for using our service! 😊`
       return;
     }
 
-    // Process Live Chat message with n8n
+    // User has Live Chat enabled - proceed with n8n integration
     const contact = await message.getContact();
 
+    // Update lastInteraction timestamp for active session
     await UserSession.findOneAndUpdate(
       { userId },
       { lastInteraction: new Date() },
       { upsert: true }
     );
 
+    // Prepare data to send to n8n
     const webhookData = {
       messageId: message.id._serialized,
       from: message.from,
@@ -609,29 +691,35 @@ Thank you for using our service! 😊`
       timestamp: message.timestamp,
       isGroup: chat.isGroup,
       chatName: chat.name,
-      type: message.type,
+      type: message.type, // text, image, video, audio, etc.
       hasMedia: message.hasMedia,
     };
 
     console.log("📥 Incoming message from:", webhookData.fromName);
     console.log("📝 Message:", message.body);
 
+    // Send to n8n webhook
     console.log("🔄 Sending to n8n...");
     const response = await axios.post(N8N_WEBHOOK_URL, webhookData, {
-      timeout: 30000,
+      timeout: 30000, // 30 second timeout
       headers: {
         "Content-Type": "application/json",
       },
     });
+    console.log("🚀 ~ handleIncomingMessage ~ response:", response.data);
 
     console.log("✅ n8n response received");
 
+    // Check if n8n returned a reply message
     if (response.data) {
+      // Handle string response
       if (typeof response.data === "string") {
         console.log("💬 Sending message:", response.data);
         await message.reply(response.data);
         console.log("✅ Message sent successfully");
-      } else if (response.data.message || response.data.reply) {
+      }
+      // Handle object response (could have message field)
+      else if (response.data.message || response.data.reply) {
         const replyMessage = response.data.message || response.data.reply;
         console.log("💬 Sending message:", replyMessage);
         await message.reply(replyMessage);
@@ -645,16 +733,17 @@ Thank you for using our service! 😊`
   } catch (error) {
     console.error("❌ Error handling message:", error.message);
 
+    // Send error message to user (optional)
     try {
       if (error.code === "ECONNREFUSED") {
         console.error("❌ Cannot connect to n8n webhook - is n8n running?");
         await message.reply(
-          "⚠️ Bot service temporarily unavailable. Please try again later.\n\nType *E* to end Live Chat Then\nType *1️⃣* to Talk To Us (We will reply to you as soon as possible)"
+          "⚠️ Bot service temporarily unavailable. Please try again later. \n\n Type *E* to end Live Chat Then\nType *1️⃣* to Talk To Us (We will reply to you as soon as possible)"
         );
       } else if (error.code === "ETIMEDOUT" || error.code === "ECONNABORTED") {
         console.error("❌ n8n webhook timeout");
         await message.reply(
-          "⚠️ Response timeout. Please try again.\n\nType *E* to end Live Chat Then\nType *1️⃣* to Talk To Us (We will reply to you as soon as possible)"
+          "⚠️ Response timeout. Please try again. \n\n Type *E* to end Live Chat Then\nType *1️⃣* to Talk To Us (We will reply to you as soon as possible)"
         );
       }
     } catch (replyError) {
@@ -665,6 +754,7 @@ Thank you for using our service! 😊`
 
 /**
  * Initialize WhatsApp Client
+ * @param {MongoStore} mongoStore - MongoDB store instance
  */
 function initializeWhatsAppClient(mongoStore) {
   if (!mongoStore) {
@@ -686,7 +776,7 @@ function initializeWhatsAppClient(mongoStore) {
   const client = new Client({
     authStrategy: new RemoteAuth({
       store: store,
-      backupSyncIntervalMs: 300000,
+      backupSyncIntervalMs: 300000, // 5 minutes
     }),
     puppeteer: {
       headless: true,
@@ -694,13 +784,14 @@ function initializeWhatsAppClient(mongoStore) {
     },
   });
 
-  // Remove TTL index if exists
+  // Ensure TTL index is 5 minutes on UserSession.lastInteraction
   async function removeUserSessionTTLIndex() {
     try {
       const indexes = await UserSession.collection.indexes();
       const ttlIndex = indexes.find(
         (idx) => idx.key && idx.key.lastInteraction && idx.expireAfterSeconds
       );
+      console.log("🚀 ~ removeUserSessionTTLIndex ~ ttlIndex:", ttlIndex);
 
       if (ttlIndex) {
         console.log(`🗑️ Removing TTL index: ${ttlIndex.name}`);
@@ -714,30 +805,48 @@ function initializeWhatsAppClient(mongoStore) {
     }
   }
 
+  // QR Code Generation
   client.on("qr", async (qr) => {
     console.log("🔗 QR RECEIVED - Session failed to load, need to scan QR:");
     console.log("📱 QR Code for WhatsApp Web:");
     qrcode.generate(qr, { small: true });
 
+    // Generate QR image for web display
     const qrImage = await generateQRImage(qr);
     setCurrentQR(qr, qrImage);
+
+    // Broadcast to all connected clients
     broadcastQRUpdate(qrImage, "qr_ready");
   });
 
+  // Remote session saved event
   client.on("remote_session_saved", () => {
     console.log("💾 Session saved to MongoDB successfully!");
   });
 
+  // Remote session failed to save event
+  client.on("remote_session_failed", (error) => {
+    console.error("❌ Failed to save session to MongoDB:", error);
+  });
+
+  // Remote session loaded event
   client.on("remote_session_loaded", () => {
     console.log("📂 Session loaded from MongoDB successfully!");
     clearCurrentQR();
     broadcastQRUpdate(null, "session_loaded");
   });
 
+  // Remote session failed to load event
+  client.on("remote_session_failed", (error) => {
+    console.error("❌ Failed to load session from MongoDB:", error);
+  });
+
+  // Loading screen events for debugging
   client.on("loading_screen", (percent, message) => {
     console.log(`📱 Loading: ${percent}% - ${message}`);
   });
 
+  // Client Ready
   client.on("ready", async () => {
     console.log("✅ WhatsApp Web.js Client is Ready!");
     whatsappClient = client;
@@ -746,17 +855,29 @@ function initializeWhatsAppClient(mongoStore) {
     clearCurrentQR();
     broadcastQRUpdate(null, "ready");
 
+    // Remove TTL index
     await removeUserSessionTTLIndex();
 
+    // Count active sessions on startup
+    // Count active sessions on startup
     try {
       activeSessionsCount = await UserSession.countDocuments({
-        $or: [{ liveChatEnabled: true }, { talkToUsSelected: true }],
+        liveChatEnabled: true,
       });
 
-      console.log(`📊 Found ${activeSessionsCount} active sessions on startup`);
+      const talkToUsCount = await UserSession.countDocuments({
+        talkToUsSelected: true,
+      });
 
-      if (activeSessionsCount > 0) {
+      console.log(
+        `📊 Found ${activeSessionsCount} Live Chat + ${talkToUsCount} Talk To Us sessions on startup`
+      );
+
+      // Only start checker if there are active sessions of any type
+      if (activeSessionsCount > 0 || talkToUsCount > 0) {
         startSessionChecker();
+
+        // Run immediate check for startup
         setTimeout(() => {
           checkInactiveSessions().catch((err) => {
             console.error("❌ Initial check failed:", err.message);
@@ -770,26 +891,31 @@ function initializeWhatsAppClient(mongoStore) {
     }
   });
 
+  // Message Handler - Listen for incoming messages
   client.on("message", async (message) => {
     await handleIncomingMessage(message);
   });
 
+  // Authentication Success
   client.on("authenticated", () => {
     console.log("🔐 Authentication successful!");
     broadcastQRUpdate(null, "authenticated");
   });
 
+  // Authentication Failure
   client.on("auth_failure", (msg) => {
     console.error("❌ Authentication failure:", msg);
     broadcastQRUpdate(null, "auth_failure");
   });
 
+  // Client Disconnected
   client.on("disconnected", (reason) => {
     console.log("📱 Client was logged out:", reason);
     isClientReady = false;
     whatsappClient = null;
     isInitializing = false;
 
+    // Attempt to restart the client after a delay
     if (restartAttempts < MAX_RESTART_ATTEMPTS) {
       restartAttempts++;
       setTimeout(() => {
@@ -805,6 +931,7 @@ function initializeWhatsAppClient(mongoStore) {
     }
   });
 
+  // Handle critical errors
   client.on("change_state", (state) => {
     console.log("🔄 Client state changed to:", state);
     if (state === "CONFLICT" || state === "UNPAIRED") {
@@ -822,14 +949,20 @@ function initializeWhatsAppClient(mongoStore) {
           );
           initializeWhatsAppClient(store);
         }, 10000);
+      } else {
+        console.error(
+          "❌ Maximum restart attempts reached. Please restart the application manually."
+        );
       }
     }
   });
 
+  // Initialize Client with error handling
   client.initialize().catch((error) => {
     console.error("❌ Failed to initialize WhatsApp client:", error);
     isInitializing = false;
 
+    // Handle specific Puppeteer errors
     if (
       error.message.includes("Protocol error") ||
       error.message.includes("Execution context was destroyed") ||
@@ -847,6 +980,10 @@ function initializeWhatsAppClient(mongoStore) {
           );
           initializeWhatsAppClient(store);
         }, 10000);
+      } else {
+        console.error(
+          "❌ Maximum restart attempts reached. Please restart the application manually."
+        );
       }
     }
   });
@@ -854,6 +991,8 @@ function initializeWhatsAppClient(mongoStore) {
 
 /**
  * Check if number exists on WhatsApp
+ * @param {string} phoneNumber - Phone number in WhatsApp format
+ * @returns {Promise<boolean>} - True if number exists
  */
 async function checkNumberExists(phoneNumber) {
   try {
@@ -870,6 +1009,8 @@ async function checkNumberExists(phoneNumber) {
 
 /**
  * Get contact details by phone number
+ * @param {string} phoneNumber - Phone number in WhatsApp format (e.g., 923001234567@c.us)
+ * @returns {Promise<object|null>} - Contact details or null if not found
  */
 async function getContactDetails(phoneNumber) {
   try {
@@ -877,27 +1018,34 @@ async function getContactDetails(phoneNumber) {
       return null;
     }
 
+    // Get number ID first
     const numberId = await whatsappClient.getNumberId(phoneNumber);
     if (!numberId) {
       return null;
     }
 
+    // Get contact details
     const contact = await whatsappClient.getContactById(numberId._serialized);
+
     if (!contact) {
       return null;
     }
 
+    // Get profile picture URL
     let profilePicUrl = null;
     try {
       const profilePic = await contact.getProfilePicUrl();
       profilePicUrl = profilePic || null;
     } catch (picError) {
+      // Profile picture not available or error fetching
       profilePicUrl = null;
     }
 
+    // Try to get name using different methods
     let contactName = null;
     let pushname = null;
 
+    // Try direct property access
     if (contact.name) {
       contactName = contact.name;
     }
@@ -905,20 +1053,27 @@ async function getContactDetails(phoneNumber) {
       pushname = contact.pushname;
     }
 
+    // Try getName() method if available
     if (!contactName && typeof contact.getName === "function") {
       try {
         contactName = contact.getName();
-      } catch (e) {}
+      } catch (e) {
+        // Ignore error
+      }
     }
 
+    // Use pushname as fallback for name
     if (!contactName && pushname) {
       contactName = pushname;
     }
 
+    // If still no name, try to get from number
     if (!contactName && !pushname) {
+      // Last resort - use number as identifier
       contactName = contact.number || contact.id?.user || "Unknown";
     }
 
+    // Format contact details
     const contactDetails = {
       number: contact.number || contact.id?.user || null,
       id: contact.id?._serialized || null,
@@ -929,6 +1084,7 @@ async function getContactDetails(phoneNumber) {
       isBusiness: contact.isBusiness || false,
       isUser: contact.isUser || false,
       profilePicUrl: profilePicUrl,
+      // Additional metadata
       isVerified: contact.isVerified || false,
       isEnterprise: contact.isEnterprise || false,
     };
@@ -945,6 +1101,9 @@ async function getContactDetails(phoneNumber) {
 
 /**
  * Send message via WhatsApp
+ * @param {string} phoneNumber - Phone number in WhatsApp format
+ * @param {string} message - Message to send
+ * @returns {Promise<object>} - Result object
  */
 async function sendMessage(phoneNumber, message) {
   if (!whatsappClient || !isClientReady) {
@@ -956,6 +1115,7 @@ async function sendMessage(phoneNumber, message) {
 
 /**
  * Get client instance
+ * @returns {Client|null} - WhatsApp client instance
  */
 function getClient() {
   return whatsappClient;
@@ -963,29 +1123,37 @@ function getClient() {
 
 /**
  * Check if client is ready
+ * @returns {boolean} - True if client is ready
  */
 function isReady() {
   return isClientReady;
 }
 
 /**
- * Validate if phone number is valid
+ * Validate if phone number is valid using libphonenumber-js
+ * @param {string} number - Phone number to validate
+ * @returns {boolean} - True if valid
  */
 function isValidPhoneNumber(number) {
   if (!number) return false;
 
   try {
+    // Convert to string and trim
     const phoneStr = String(number).trim();
+
     if (!phoneStr) return false;
 
+    // Try validating with '+' prefix (E.164 format)
     if (validatePhoneNumber(`+${phoneStr}`)) {
       return true;
     }
 
+    // Try validating without '+' prefix (WhatsApp format)
     if (validatePhoneNumber(phoneStr)) {
       return true;
     }
 
+    // Try validating with default country code (PK) for local numbers
     if (validatePhoneNumber(phoneStr, "PK")) {
       return true;
     }
@@ -998,12 +1166,18 @@ function isValidPhoneNumber(number) {
 
 /**
  * Get all contacts from WhatsApp with filtering options
+ * @param {Object} options - Filtering options
+ * @param {boolean} options.savedOnly - Only return saved contacts (default: false)
+ * @param {boolean} options.excludeUnknown - Exclude contacts with "Unknown" name (default: false)
+ * @param {boolean} options.validateNumber - Validate phone number format (default: true)
+ * @returns {Promise<Array>} - Array of contacts with numbers and names
  */
 async function getAllContacts(options = {}) {
   if (!whatsappClient || !isClientReady) {
     throw new Error("WhatsApp client not ready");
   }
 
+  // Default options
   const {
     savedOnly = false,
     excludeUnknown = false,
@@ -1013,8 +1187,11 @@ async function getAllContacts(options = {}) {
   try {
     const contacts = await whatsappClient.getContacts();
 
+    // Filter and format contacts
     const formattedContacts = contacts
       .filter((contact) => {
+        // Filter out group chats, broadcast lists, status, and LID entries
+        // Only keep standard WhatsApp numbers (@c.us format)
         if (
           !contact.isUser ||
           contact.isGroup ||
@@ -1025,10 +1202,12 @@ async function getAllContacts(options = {}) {
           return false;
         }
 
+        // Filter: Only saved contacts
         if (savedOnly && !contact.isMyContact) {
           return false;
         }
 
+        // Filter: Validate phone number
         if (validateNumber) {
           const number = contact.number || contact.id.user;
           if (!isValidPhoneNumber(number)) {
@@ -1047,12 +1226,14 @@ async function getAllContacts(options = {}) {
         shortName: contact.shortName || null,
       }))
       .filter((contact) => {
+        // Filter: Exclude unknown names (applied after mapping)
         if (excludeUnknown && contact.name === "Unknown") {
           return false;
         }
         return true;
       })
       .sort((a, b) => {
+        // Sort by name alphabetically
         const nameA = (a.name || "").toLowerCase();
         const nameB = (b.name || "").toLowerCase();
         return nameA.localeCompare(nameB);
