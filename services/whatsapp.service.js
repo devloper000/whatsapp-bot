@@ -32,12 +32,12 @@ let sessionCheckInterval = null;
 let activeSessionsCount = 0;
 
 // Session timeout: 5 minutes for both Live Chat and Talk To Us
-const SESSION_TIMEOUT_MINUTES = 2;
+const SESSION_TIMEOUT_MINUTES = 20;
 const SESSION_TIMEOUT_MS = SESSION_TIMEOUT_MINUTES * 60 * 1000;
 
 // Session cleanup: Remove sessions after 1 hour of inactivity
 const SESSION_CLEANUP_HOURS = 1;
-const SESSION_CLEANUP_MS = 3 * 60 * 1000;
+const SESSION_CLEANUP_MS = SESSION_CLEANUP_HOURS * 60 * 60 * 1000;
 
 let cleanupInterval = null;
 
@@ -353,39 +353,39 @@ Thank you for using our service! 😊`;
       );
 
       // Send expiry messages
-      let successCount = 0;
-      let failCount = 0;
+//       let successCount = 0;
+//       let failCount = 0;
 
-      for (const session of inactiveTalkToUsSessions) {
-        const expiryMessage = `⏰ *Session Expired*
+//       for (const session of inactiveTalkToUsSessions) {
+//         const expiryMessage = `⏰ *Session Expired*
 
-Your "Talk To Us" request has been automatically cleared due to inactivity (${SESSION_TIMEOUT_MINUTES} minutes).
+// Your "Talk To Us" request has been automatically cleared due to inactivity (${SESSION_TIMEOUT_MINUTES} minutes).
 
-🔄 *To start again:*
-Send any message or reply with:
-*1️⃣* - Talk To Us
-*2️⃣* - Live Chat (recommended for information)
+// 🔄 *To start again:*
+// Send any message or reply with:
+// *1️⃣* - Talk To Us
+// *2️⃣* - Live Chat (recommended for information)
 
-Thank you! 😊`;
+// Thank you! 😊`;
 
-        try {
-          const ok = await sendDirectMessage(session.userId, expiryMessage);
-          if (ok) successCount++;
-          else failCount++;
-        } catch (msgError) {
-          console.error(
-            `❌ Error sending to ${session.userId}:`,
-            msgError.message
-          );
-          failCount++;
-        }
+//         try {
+//           const ok = await sendDirectMessage(session.userId, expiryMessage);
+//           if (ok) successCount++;
+//           else failCount++;
+//         } catch (msgError) {
+//           console.error(
+//             `❌ Error sending to ${session.userId}:`,
+//             msgError.message
+//           );
+//           failCount++;
+//         }
 
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
+//         await new Promise((resolve) => setTimeout(resolve, 500));
+//       }
 
-      console.log(
-        `✅ Talk To Us expiry complete: ${successCount} sent, ${failCount} failed`
-      );
+//       console.log(
+//         `✅ Talk To Us expiry complete: ${successCount} sent, ${failCount} failed`
+//       );
     }
 
     // Update active count
