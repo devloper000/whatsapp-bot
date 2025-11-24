@@ -1,4 +1,4 @@
-const { Client, RemoteAuth, MessageMedia } = require("whatsapp-web.js");
+const { Client, RemoteAuth, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const { MongoStore } = require("wwebjs-mongo");
 const axios = require("axios");
@@ -32,8 +32,14 @@ let sessionCheckInterval = null;
 let activeSessionsCount = 0;
 
 // Session timeout: 5 minutes for both Live Chat and Talk To Us
-const SESSION_TIMEOUT_MINUTES = 5;
+const SESSION_TIMEOUT_MINUTES = 2;
 const SESSION_TIMEOUT_MS = SESSION_TIMEOUT_MINUTES * 60 * 1000;
+
+// Session cleanup: Remove sessions after 1 hour of inactivity
+const SESSION_CLEANUP_HOURS = 1;
+const SESSION_CLEANUP_MS = 3 * 60 * 1000;
+
+let cleanupInterval = null;
 
 /**
  * Start session checker only when needed
@@ -65,6 +71,74 @@ function stopSessionChecker() {
     clearInterval(sessionCheckInterval);
     sessionCheckInterval = null;
     console.log("🛑 Session checker stopped (no active sessions)");
+  }
+}
+
+/**
+ * Start cleanup interval for removing old sessions
+ */
+function startCleanupInterval() {
+  if (cleanupInterval) {
+    console.log("⚠️ Cleanup interval already running");
+    return;
+  }
+
+  console.log("🧹 Starting session cleanup interval (1 hour check)...");
+
+  // Run cleanup every 30 minutes
+  cleanupInterval = setInterval(async () => {
+    await cleanupOldSessions();
+  }, 1 * 60 * 1000); // Check every 30 minutes
+
+  console.log("✅ Cleanup interval started");
+}
+
+/**
+ * Stop cleanup interval
+ */
+function stopCleanupInterval() {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+    console.log("🛑 Cleanup interval stopped");
+  }
+}
+
+/**
+ * Remove sessions that have been inactive for 1 hour
+ */
+async function cleanupOldSessions() {
+  try {
+    const oneHourAgo = new Date(Date.now() - SESSION_CLEANUP_MS);
+
+    // Find sessions to delete
+    const sessionsToDelete = await UserSession.find({
+      liveChatEnabled: false,
+      talkToUsSelected: false,
+      lastInteraction: { $lt: oneHourAgo },
+    })
+      .select("userId lastInteraction")
+      .lean();
+
+    if (sessionsToDelete.length === 0) {
+      console.log("✅ No old sessions to cleanup");
+      return;
+    }
+
+    // Delete old sessions
+    const result = await UserSession.deleteMany({
+      liveChatEnabled: false,
+      talkToUsSelected: false,
+      lastInteraction: { $lt: oneHourAgo },
+    });
+
+    if (result.deletedCount > 0) {
+      console.log(
+        `🗑️ Cleaned up ${result.deletedCount} old sessions (inactive for ${SESSION_CLEANUP_MS} hour)`
+      );
+    }
+  } catch (error) {
+    console.error("❌ Error cleaning old sessions:", error.message);
   }
 }
 
@@ -618,7 +692,7 @@ Thank you for using our service! 😊`
 
     console.log("🔄 Sending to n8n...");
     const response = await axios.post(N8N_WEBHOOK_URL, webhookData, {
-      timeout: 30000,
+      timeout: 60000,
       headers: {
         "Content-Type": "application/json",
       },
@@ -684,14 +758,20 @@ function initializeWhatsAppClient(mongoStore) {
   console.log("🚀 Initializing WhatsApp Client with MongoDB session store...");
 
   const client = new Client({
-    authStrategy: new RemoteAuth({
-      store: store,
-      backupSyncIntervalMs: 300000,
-    }),
+    authStrategy: new LocalAuth(),
+    // authStrategy: new RemoteAuth({
+    //   store: store,
+    //   backupSyncIntervalMs: 300000,
+    // }),
     puppeteer: {
       headless: true,
       args: getPuppeteerArgs(),
     },
+    // webVersionCache: {
+    //   type: "remote",
+    //   remotePath:
+    //     "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html",
+    // },
   });
 
   // Remove TTL index if exists
@@ -765,6 +845,16 @@ function initializeWhatsAppClient(mongoStore) {
       } else {
         console.log("✅ No active sessions - checker will start when needed");
       }
+
+      // Start cleanup interval on startup
+      startCleanupInterval();
+
+      // Run immediate cleanup on startup
+      setTimeout(() => {
+        cleanupOldSessions().catch((err) => {
+          console.error("❌ Initial cleanup failed:", err.message);
+        });
+      }, 5000);
     } catch (error) {
       console.error("❌ Error counting active sessions:", error.message);
     }
@@ -789,6 +879,10 @@ function initializeWhatsAppClient(mongoStore) {
     isClientReady = false;
     whatsappClient = null;
     isInitializing = false;
+
+    // Stop intervals on disconnect
+    stopSessionChecker();
+    stopCleanupInterval();
 
     if (restartAttempts < MAX_RESTART_ATTEMPTS) {
       restartAttempts++;

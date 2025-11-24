@@ -2,16 +2,21 @@ const isProduction =
   process.env.NODE_ENV === "production";
 
 const getPuppeteerArgs = () => {
+  const commonArgs = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-accelerated-2d-canvas",
+    "--no-first-run",
+    "--no-zygote",
+    "--disable-gpu",
+    "--disable-software-rasterizer",
+    "--disable-gl-drawing-for-tests",
+  ];
+
   if (isProduction) {
     return [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
-      "--no-first-run",
-      "--no-zygote",
-      "--single-process",
-      "--disable-gpu",
+      ...commonArgs,
       "--disable-web-security",
       "--disable-features=VizDisplayCompositor",
       "--disable-extensions",
@@ -41,7 +46,8 @@ const getPuppeteerArgs = () => {
       "--disable-blink-features=AutomationControlled",
     ];
   }
-  return ["--no-sandbox", "--disable-setuid-sandbox"];
+  
+  return commonArgs;
 };
 
 const MAX_RESTART_ATTEMPTS = 5;
