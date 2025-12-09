@@ -533,6 +533,8 @@ async function handleUserSelection(message, selectedOption) {
 /**
  * Handle incoming WhatsApp messages
  */
+// Updated handleIncomingMessage function with Location Support
+
 async function handleIncomingMessage(message) {
   try {
     if (message.from === "status@broadcast") {
@@ -675,6 +677,7 @@ Thank you for using our service! 😊`
       { upsert: true }
     );
 
+    // ✅ PREPARE WEBHOOK DATA WITH LOCATION SUPPORT
     const webhookData = {
       messageId: message.id._serialized,
       from: message.from,
@@ -687,8 +690,21 @@ Thank you for using our service! 😊`
       hasMedia: message.hasMedia,
     };
 
+    // ✅ HANDLE LOCATION MESSAGES
+    if (message.type === 'location' && message.location) {
+      webhookData.location = {
+        latitude: message.location.latitude,
+        longitude: message.location.longitude,
+        description: message.location.description || '',
+        googleMapsUrl: `https://www.google.com/maps?q=${message.location.latitude},${message.location.longitude}`
+      };
+      
+      console.log("📍 Location received:", webhookData.location);
+    }
+
     console.log("📥 Incoming message from:", webhookData.fromName);
-    console.log("📝 Message:", message.body);
+    console.log("📝 Message type:", message.type);
+    console.log("📝 Message:", message.body || '[Location/Media]');
 
     console.log("🔄 Sending to n8n...");
     const response = await axios.post(N8N_WEBHOOK_URL, webhookData, {
